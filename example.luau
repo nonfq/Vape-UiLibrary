@@ -1,5 +1,5 @@
 -- Vape UI Library - example
-local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/nondevelopers/Vape-UiLibrary/main/source.luau"))()
+local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/nonfq/Vape-UiLibrary/main/source.luau"))()
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
