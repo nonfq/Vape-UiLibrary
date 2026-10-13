@@ -1013,6 +1013,17 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
     local contentH = winH - 65
     local tabW = winW - 187
     local elemW = tabW - 10
+    -- The window is two separate panels that can be dragged independently:
+    --   TabMain = title + tab list (left)
+    --   Main    = tab content + minimize/close buttons (right)
+    local PANEL_GAP = 10
+    local tabPanelW = 145
+    local contentX = 11 -- padding around the tab content inside Main
+    local menuW = tabW + contentX * 2
+    local groupW = tabPanelW + PANEL_GAP + menuW
+    local TabMain = Instance.new("Frame")
+    local TabMainCorner = Instance.new("UICorner")
+    local TabDragFrame = Instance.new("Frame")
     local Main = Instance.new("Frame")
     local TabHold = Instance.new("ScrollingFrame")
     local TabHoldLayout = Instance.new("UIListLayout")
@@ -1020,6 +1031,22 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
     local TabFolder = Instance.new("Folder")
     local DragFrame = Instance.new("Frame")
     local MainCorner = Instance.new("UICorner")
+
+    TabMainCorner.CornerRadius = UDim.new(0, 9)
+    TabMainCorner.Name = "TabMainCorner"
+    TabMainCorner.Parent = TabMain
+
+    TabMain.Name = "TabMain"
+    TabMain.Parent = ui
+    TabMain.AnchorPoint = Vector2.new(0.5, 0.5)
+    TabMain.BackgroundColor3 = G(30)
+    reg(TabMain, "BackgroundColor3", 30)
+    TabMain.BackgroundTransparency = winTransparency
+    TabMain.BorderSizePixel = 0
+    TabMain.Position = UDim2.new(0.5, math.floor(-groupW / 2 + tabPanelW / 2), 0.5, 0)
+    TabMain.Size = UDim2.new(0, 0, 0, 0)
+    TabMain.ClipsDescendants = true
+    TabMain.Visible = true
 
     MainCorner.CornerRadius = UDim.new(0, 9)
     MainCorner.Name = "MainCorner"
@@ -1032,13 +1059,13 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
     reg(Main, "BackgroundColor3", 30)
     Main.BackgroundTransparency = winTransparency
     Main.BorderSizePixel = 0
-    Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+    Main.Position = UDim2.new(0.5, math.floor(-groupW / 2 + tabPanelW + PANEL_GAP + menuW / 2), 0.5, 0)
     Main.Size = UDim2.new(0, 0, 0, 0)
     Main.ClipsDescendants = true
     Main.Visible = true
 
     TabHold.Name = "TabHold"
-    TabHold.Parent = Main
+    TabHold.Parent = TabMain
     TabHold.Active = true
     TabHold.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     TabHold.BackgroundTransparency = 1.000
@@ -1062,7 +1089,7 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
     TabHoldLayout.Padding = UDim.new(0, 11)
 
     Title.Name = "Title"
-    Title.Parent = Main
+    Title.Parent = TabMain
     Title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     Title.BackgroundTransparency = 1.000
     Title.Position = UDim2.new(0, 19, 0, 9)
@@ -1078,10 +1105,20 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
     DragFrame.Parent = Main
     DragFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     DragFrame.BackgroundTransparency = 1.000
-    DragFrame.Size = UDim2.new(0, winW, 0, 41)
+    DragFrame.Size = UDim2.new(0, menuW, 0, 41)
 
-    local FullSize = UDim2.new(0, winW, 0, winH)
-    local MinimizedSize = UDim2.new(0, winW, 0, 41)
+    TabDragFrame.Name = "TabDragFrame"
+    TabDragFrame.Parent = TabMain
+    TabDragFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    TabDragFrame.BackgroundTransparency = 1.000
+    TabDragFrame.Size = UDim2.new(0, tabPanelW, 0, 41)
+
+    -- both panels open, close and minimize together, but sit and move independently
+    -- w = width, full/mini = expanded/collapsed height, h = height it is currently at
+    local Panels = {
+        {frame = TabMain, w = tabPanelW, full = winH, mini = 41, h = winH},
+        {frame = Main, w = menuW, full = winH, mini = 41, h = winH}
+    }
 
     local CloseBtn = Instance.new("TextButton")
     local CloseBtnCorner = Instance.new("UICorner")
@@ -1190,22 +1227,42 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
         end
     )
 
-    Main.BackgroundTransparency = 1
-    TweenService:Create(
-        Main,
-        TweenInfo.new(.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        {BackgroundTransparency = winTransparency}
-    ):Play()
-    Main:TweenSize(FullSize, Enum.EasingDirection.Out, Enum.EasingStyle.Quart, .6, true)
+    for _, p in ipairs(Panels) do
+        p.frame.BackgroundTransparency = 1
+        TweenService:Create(
+            p.frame,
+            TweenInfo.new(.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundTransparency = winTransparency}
+        ):Play()
+        p.frame:TweenSize(UDim2.new(0, p.w, 0, p.full), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, .6, true)
+    end
 
+    -- each panel has its own drag bar
     MakeDraggable(DragFrame, Main)
+    MakeDraggable(TabDragFrame, TabMain)
+
+    -- the panel you grab is drawn on top, so they can overlap either way round
+    local function BringToFront(panel)
+        TabMain.ZIndex = 1
+        Main.ZIndex = 1
+        panel.ZIndex = 2
+    end
+
+    local function RaiseOnPress(bar, panel)
+        bar.InputBegan:Connect(
+            function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    BringToFront(panel)
+                end
+            end
+        )
+    end
+
+    RaiseOnPress(DragFrame, Main)
+    RaiseOnPress(TabDragFrame, TabMain)
 
     local uitoggled = false
     local minimized = false
-
-    local function OpenSize()
-        return minimized and MinimizedSize or FullSize
-    end
 
     local function SetClosed(shouldClose)
         if shouldClose == uitoggled then
@@ -1213,22 +1270,80 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
         end
         uitoggled = shouldClose
         if uitoggled then
-            TweenService:Create(
-                Main,
-                TweenInfo.new(.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {BackgroundTransparency = 1}
-            ):Play()
-            Main:TweenSize(UDim2.new(0, 0, 0, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, .6, true)
+            for _, p in ipairs(Panels) do
+                TweenService:Create(
+                    p.frame,
+                    TweenInfo.new(.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    {BackgroundTransparency = 1}
+                ):Play()
+                p.frame:TweenSize(UDim2.new(0, 0, 0, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, .6, true)
+            end
             wait(.5)
-            Main.Visible = false
+            -- skip if it was reopened during the fade-out
+            if uitoggled then
+                for _, p in ipairs(Panels) do
+                    p.frame.Visible = false
+                end
+            end
         else
-            Main.Visible = true
-            TweenService:Create(
-                Main,
-                TweenInfo.new(.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {BackgroundTransparency = winTransparency}
-            ):Play()
-            Main:TweenSize(OpenSize(), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, .6, true)
+            for _, p in ipairs(Panels) do
+                p.frame.Visible = true
+                TweenService:Create(
+                    p.frame,
+                    TweenInfo.new(.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    {BackgroundTransparency = winTransparency}
+                ):Play()
+                p.frame:TweenSize(UDim2.new(0, p.w, 0, minimized and p.mini or p.full), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, .6, true)
+            end
+        end
+    end
+
+    -- Changes a panel's height while keeping its top edge (the drag bar) where it
+    -- is, so minimizing or refitting never makes the bar jump. Panels are anchored
+    -- at their centre, so the position moves by half the height change.
+    local function SetPanelHeight(p, newH, t)
+        local base = p.frame.Position
+        if p.tweenEnd and os.clock() < p.tweenEnd then
+            base = p.targetPos -- a resize is still running, build on where it is heading
+        end
+        local newPos = UDim2.new(base.X.Scale, base.X.Offset, base.Y.Scale, base.Y.Offset + (newH - p.h) / 2)
+        p.h = newH
+        p.targetPos = newPos
+        p.tweenEnd = os.clock() + t
+        if uitoggled then
+            -- window is closed: just remember the new height and spot, it opens at them
+            p.frame.Position = newPos
+            return
+        end
+        p.frame:TweenSizeAndPosition(
+            UDim2.new(0, p.w, 0, newH),
+            newPos,
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quart,
+            t,
+            true
+        )
+    end
+
+    -- The tab panel is as tall as its tabs: few tabs gives a short panel, many tabs
+    -- gives a tall one, up to the screen height, and past that the list scrolls.
+    local TAB_ROW_H, TAB_GAP = 21, 11
+    local TAB_TOP, TAB_BOTTOM = 47, 14
+    local tabCount = 0
+
+    local function FitTabPanel()
+        local listH = tabCount * TAB_ROW_H + math.max(tabCount - 1, 0) * TAB_GAP + 4
+        local wantH = TAB_TOP + listH + TAB_BOTTOM
+        local screenH = ui.AbsoluteSize.Y
+        local maxH = math.max(screenH > 0 and (screenH - 40) or winH, 90)
+        local newH = math.clamp(wantH, 90, maxH)
+
+        TabHold.Size = UDim2.new(0, 107, 0, newH - TAB_TOP - TAB_BOTTOM)
+
+        local p = Panels[1]
+        p.full = newH
+        if not minimized then
+            SetPanelHeight(p, newH, .35)
         end
     end
 
@@ -1240,9 +1355,9 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
         end
     )
 
-    -- Round mobile toggle button: opens/closes the panel with a tap, since
+    -- Capsule mobile toggle button: opens/closes the panels with a tap, since
     -- touch users have no keybind. Parented to `ui` directly (not Main) so
-    -- it stays visible even while the panel itself is closed.
+    -- it stays visible even while the panels themselves are closed.
     local MobileToggleBtn = Instance.new("TextButton")
     local MobileToggleBtnCorner = Instance.new("UICorner")
 
@@ -1250,16 +1365,16 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
     MobileToggleBtn.Parent = ui
     MobileToggleBtn.AnchorPoint = Vector2.new(1, 1)
     MobileToggleBtn.Position = UDim2.new(1, -20, 1, -20)
-    MobileToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+    MobileToggleBtn.Size = UDim2.new(0, 78, 0, 32)
     MobileToggleBtn.BackgroundColor3 = G(30)
     reg(MobileToggleBtn, "BackgroundColor3", 30)
     MobileToggleBtn.BorderSizePixel = 0
     MobileToggleBtn.AutoButtonColor = false
     MobileToggleBtn.Font = Enum.Font.GothamBold
-    MobileToggleBtn.Text = string.upper(string.sub(text, 1, 1))
+    MobileToggleBtn.Text = "MENU"
     MobileToggleBtn.TextColor3 = G(210)
     reg(MobileToggleBtn, "TextColor3", 210)
-    MobileToggleBtn.TextSize = 18.000
+    MobileToggleBtn.TextSize = 13.000
     MobileToggleBtn.ZIndex = 10
     -- only show this on touch devices; desktop users already have the
     -- close/minimize buttons and the CloseBind keybind
@@ -1383,8 +1498,8 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
                 end
             end
 
-            if not uitoggled then
-                Main:TweenSize(OpenSize(), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, .4, true)
+            for _, p in ipairs(Panels) do
+                SetPanelHeight(p, minimized and p.mini or p.full, .4)
             end
         end
     )
@@ -1512,6 +1627,8 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
 
         TabBtn.Name = "TabBtn"
         TabBtn.Parent = TabHold
+        tabCount = tabCount + 1
+        FitTabPanel()
         TabBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         TabBtn.BackgroundTransparency = 1.000
         TabBtn.Size = UDim2.new(0, 107, 0, 21)
@@ -1577,7 +1694,7 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
         Tab.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         Tab.BackgroundTransparency = 1.000
         Tab.BorderSizePixel = 0
-        Tab.Position = UDim2.new(0, 176, 0, 47)
+        Tab.Position = UDim2.new(0, contentX, 0, 47)
         Tab.Size = UDim2.new(0, tabW, 0, contentH)
         Tab.CanvasSize = UDim2.new(0, 0, 0, 0)
         Tab.ScrollBarThickness = 3
@@ -1608,11 +1725,11 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
                     Tab.Visible = true
                 end
                 if not wasVisible then
-                    Tab.Position = UDim2.new(0, 176, 0, 47 + 14)
+                    Tab.Position = UDim2.new(0, contentX, 0, 47 + 14)
                     TweenService:Create(
                         Tab,
                         TweenInfo.new(.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-                        {Position = UDim2.new(0, 176, 0, 47)}
+                        {Position = UDim2.new(0, contentX, 0, 47)}
                     ):Play()
                 end
                 for i, v in next, TabHold:GetChildren() do
@@ -3289,6 +3406,9 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
             )
         end
         function tabcontent:Section(text)
+            local SECTION_TEXT_SIZE = 12 -- was 13, a little smaller
+            local SECTION_RAISE = 1.4 -- px the label sits higher than before
+
             -- extra breathing room above the section, but not if it's the
             -- very first thing added to the tab (Tab always has TabLayout
             -- as a child, so 1 child means nothing's been added yet)
@@ -3297,7 +3417,7 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
                 SectionSpacing.Name = "SectionSpacing"
                 SectionSpacing.Parent = Tab
                 SectionSpacing.BackgroundTransparency = 1.000
-                SectionSpacing.Size = UDim2.new(0, elemW, 0, 4)
+                SectionSpacing.Size = UDim2.new(0, elemW, 0, 4 - SECTION_RAISE)
             end
 
             local Section = Instance.new("TextLabel")
@@ -3309,7 +3429,7 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
             Section.Font = Enum.Font.GothamBold
             Section.Text = text
             Section.TextColor3 = PresetColor
-            Section.TextSize = 13.000
+            Section.TextSize = SECTION_TEXT_SIZE
             Section.TextXAlignment = Enum.TextXAlignment.Left
             Section.TextYAlignment = Enum.TextYAlignment.Top
             Section.TextTransparency = 1.000
