@@ -1014,7 +1014,7 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
     local tabW = winW - 187
     local elemW = tabW - 10
     local Main = Instance.new("Frame")
-    local TabHold = Instance.new("Frame")
+    local TabHold = Instance.new("ScrollingFrame")
     local TabHoldLayout = Instance.new("UIListLayout")
     local Title = Instance.new("TextLabel")
     local TabFolder = Instance.new("Folder")
@@ -1039,10 +1039,22 @@ function lib:Window(text, preset, closebind, size, transparency, theme)
 
     TabHold.Name = "TabHold"
     TabHold.Parent = Main
+    TabHold.Active = true
     TabHold.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     TabHold.BackgroundTransparency = 1.000
+    TabHold.BorderSizePixel = 0
     TabHold.Position = UDim2.new(0, 19, 0, 47)
     TabHold.Size = UDim2.new(0, 107, 0, contentH)
+    TabHold.CanvasSize = UDim2.new(0, 0, 0, 0)
+    TabHold.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    TabHold.ScrollingDirection = Enum.ScrollingDirection.Y
+    TabHold.ScrollBarThickness = 0 -- set to 2 for a visible scrollbar
+    TabHold.ElasticBehavior = Enum.ElasticBehavior.Never
+
+    -- room under the last tab so its 2px indicator isn't clipped
+    local TabHoldPadding = Instance.new("UIPadding")
+    TabHoldPadding.PaddingBottom = UDim.new(0, 4)
+    TabHoldPadding.Parent = TabHold
 
     TabHoldLayout.Name = "TabHoldLayout"
     TabHoldLayout.Parent = TabHold
