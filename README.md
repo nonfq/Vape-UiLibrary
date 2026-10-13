@@ -9,6 +9,19 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/nonfq/Vape-UiLibrary/
 
 ## updates
 
+> 10/13/26  
+[+] Tab list scrolls: with many tabs on a small UI, extra tabs no longer get cut off (touch drag on mobile, mouse wheel on PC)  
+[+] Tab side and menu side are now two separate panels, each with its own drag bar so you can move them independently  
+[+] The panel you grab comes to the front, so they can overlap either way round  
+[+] Tab panel auto-sizes to its tabs: short for a few tabs, taller for many, up to screen height, then it scrolls  
+[+] Minimize keeps the title bars in place instead of jumping to the middle  
+[+] Mobile toggle button is now a capsule (78x32) labeled "MENU"  
+[+] Section labels sit 1.4px higher  
+[-] Single combined window (tab side and menu side were locked together)  
+[-] Fixed tab list height that hid tabs past the window size  
+[-] Round mobile button with the single-letter label  
+[-] Section text size 13 (now 12)   
+
 > 10/02/2026  
 [+] rounded the window and elements slightly.  
 [+] added Light, Dark and Black themes, with a smooth fade when switching.  
